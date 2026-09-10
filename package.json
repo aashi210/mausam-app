@@ -1,0 +1,34 @@
+{
+  "name": "new-work",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node testServer.js",
+    "test:security": "node testSecurity.js",
+    "test:frontend": "node testFrontend.js",
+    "test:aggregator": "node testAggregator.js",
+    "test:resilience": "node testResilience.js",
+    "test:integration": "node testIntegration.js",
+    "test:all": "node testServer.js && node testSecurity.js && node testFrontend.js && node testAggregator.js && node testResilience.js && node validateTest.js && node testLogic.js && node testIntegration.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.20.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "mongoose": "^9.9.5",
+    "morgan": "^1.12.0",
+    "node-cache": "^5.1.2",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0",
+    "zod": "^4.6.1"
+  }
+}
