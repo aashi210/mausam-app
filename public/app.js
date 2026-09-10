@@ -19,6 +19,11 @@
  *  - Modal managers (Advisory detail, Widget customization, Persona onboarding wizard)
  */
 
+// Dynamic API Base URL (connects GitHub Pages to live Render backend API)
+const API_BASE_URL = (window.location.hostname.includes('github.io'))
+  ? 'https://mausam-application.onrender.com'
+  : '';
+
 // Preset Indian Cities (featuring Delhi, Mumbai, Bengaluru, Udaipur, Bikaner)
 const PRESET_LOCATIONS = [
   { name: 'Delhi', lat: 28.6139, lon: 77.2090, region: 'NCR' },
@@ -519,7 +524,7 @@ async function fetchWeather(rawLat, rawLng, cityName = 'Selected Location') {
   state.currentCity = cityName;
 
   try {
-    const url = `/api/weather?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`;
+    const url = `${API_BASE_URL}/api/weather?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`;
     const res = await fetch(url);
     const data = await res.json();
 
@@ -1496,7 +1501,7 @@ function setupModalEvents() {
       };
 
       try {
-        const res = await fetch('/api/save-location', {
+        const res = await fetch(`${API_BASE_URL}/api/save-location`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
