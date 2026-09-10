@@ -55,21 +55,6 @@ app.get('/', (req, res) => {
   return res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-  // Otherwise, serve structured API discovery JSON metadata
-  res.status(200).json({
-    name: 'SIH26076 Mausam App - API Service',
-    status: 'online',
-    version: '1.0.0',
-    documentation: 'GET /api-docs',
-    endpoints: {
-      docs: 'GET /api-docs',
-      health: 'GET /health',
-      weather: 'GET /api/weather?latitude=:lat&longitude=:lon',
-      saveLocation: 'POST /api/save-location'
-    }
-  });
-});
-
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
