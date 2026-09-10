@@ -31,7 +31,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve frontend static assets (CSS, JS, images) from public/ directory
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Rate limiter: Max 100 requests per 15 minutes per IP on API routes
 app.use('/api/', apiRateLimiter);
@@ -52,10 +52,8 @@ app.use(
 // Frontend Dashboard & Root Discovery Endpoints
 // -----------------------------------------------------------------------------
 app.get('/', (req, res) => {
-  // If client accepts HTML (browser navigation), serve interactive Frontend UI Dashboard
-  if (req.accepts('html') && !req.xhr && req.headers.accept && req.headers.accept.includes('text/html')) {
-    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  }
+  return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
   // Otherwise, serve structured API discovery JSON metadata
   res.status(200).json({

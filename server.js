@@ -27,12 +27,11 @@ if (MONGODB_URI) {
 }
 
 // Start HTTP Server
-const server = app.listen(PORT, () => {
+const HOST = '0.0.0.0';
+const server = app.listen(PORT, HOST, () => {
   console.log('================================================================================');
   console.log(` 🌦️  SIH26076: MAUSAM APP - MAIN EXPRESS SERVER ONLINE`);
-  console.log(` 🚀 Listening on: http://localhost:${PORT}`);
-  console.log(` 📡 Weather Route: http://localhost:${PORT}/api/weather?latitude=28.61&longitude=77.23`);
-  console.log(` 💾 Save Location: http://localhost:${PORT}/api/save-location`);
+  console.log(` 🚀 Listening on: http://${HOST}:${PORT}`);
   console.log('================================================================================');
 });
 
