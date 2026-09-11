@@ -12,11 +12,6 @@ const API_TIMEOUT = 4500;
 /**
  * Enforces a strict promise timeout boundary to prevent lingering sockets or slow DNS
  * from exceeding the application timeout boundary.
- *
- * @param {Promise} promise
- * @param {number} ms
- * @param {string} providerName
- * @returns {Promise}
  */
 function withStrictTimeout(promise, ms = API_TIMEOUT, providerName = 'External API') {
   let timer;
@@ -32,17 +27,9 @@ function withStrictTimeout(promise, ms = API_TIMEOUT, providerName = 'External A
   });
 }
 
-// =============================================================================
-// Individual Third-Party Provider Fetchers (with 5000ms strict timeout)
-// =============================================================================
-
 /**
  * 1. OpenWeatherMap API Fetcher
  * Queries current weather, AQI, and UV Index using process.env.OWM_KEY.
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {Promise<Object>}
  */
 async function fetchOpenWeatherMap(latitude, longitude) {
   const apiKey = process.env.OWM_KEY;
@@ -87,10 +74,6 @@ async function fetchOpenWeatherMap(latitude, longitude) {
 /**
  * 2. Open-Meteo API Fetcher (Free, no API key required)
  * Queries volumetric soil moisture, relative humidity, wind speed, and baseline meteorology.
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {Promise<Object>}
  */
 async function fetchOpenMeteo(latitude, longitude) {
   const [forecastRes, airRes, marineRes] = await Promise.all([
@@ -143,10 +126,6 @@ async function fetchOpenMeteo(latitude, longitude) {
 /**
  * 3. Stormglass API Fetcher
  * Queries marine conditions, wave height, and ocean current speed using process.env.STORMGLASS_KEY.
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {Promise<Object>}
  */
 async function fetchStormglass(latitude, longitude) {
   const apiKey = process.env.STORMGLASS_KEY;
@@ -179,10 +158,6 @@ async function fetchStormglass(latitude, longitude) {
 /**
  * 4. OpenRouteService / Mapbox API Fetcher
  * Queries route visibility and road traffic conditions using process.env.ORS_KEY.
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {Promise<Object>}
  */
 async function fetchOpenRouteService(latitude, longitude) {
   const apiKey = process.env.ORS_KEY || process.env.MAPBOX_KEY;
@@ -208,10 +183,6 @@ async function fetchOpenRouteService(latitude, longitude) {
 /**
  * 5. IMD Public Data / Weather Feed Fetcher
  * Queries public India Meteorological Department (IMD) bulletin feeds for national/monsoon advisories.
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {Promise<Object>}
  */
 async function fetchIMDWeatherFeed(latitude, longitude) {
   // Public IMD bulletin / national weather RSS service endpoint
@@ -230,19 +201,16 @@ async function fetchIMDWeatherFeed(latitude, longitude) {
   };
 }
 
-// =============================================================================
-// Multi-Source Normalization Engine (with Field-by-Field Fallback Substitution)
-// =============================================================================
 
 /**
  * Normalizes all settled provider responses into a single flat JSON object.
  * If any individual API rejected or timed out, gracefully substitutes fallback values
  * for that specific field without failing the whole payload.
  *
- * @param {Array<Object>} settledResults - Array of 5 Promise.allSettled results
- * @param {number|string} latitude
- * @param {number|string} longitude
- * @returns {Object} Clean flat normalized meteorological payload
+ * settledResults - Array of 5 Promise.allSettled results
+ * latitude
+ * longitude
+ * Clean flat normalized meteorological payload
  */
 function normalizeAggregatedData(settledResults = [], latitude, longitude) {
   const [owmRes, openMeteoRes, stormglassRes, orsRes, imdRes] = settledResults;
@@ -307,18 +275,11 @@ function normalizeAggregatedData(settledResults = [], latitude, longitude) {
   };
 }
 
-// =============================================================================
-// Main Service Method: getWeatherData
-// =============================================================================
 
 /**
  * Multi-Source Aggregator Pattern
  * Fires concurrent API calls using Promise.allSettled() with strict 5000ms timeouts,
  * normalizes responses, and caches output for 10 minutes (node-cache).
- *
- * @param {number|string} latitude
- * @param {number|string} longitude
- * @returns {Promise<Object>} Flat normalized weather data with field-level fallbacks
  */
 async function getWeatherData(latitude, longitude) {
   const cacheKey = `${Number(latitude).toFixed(4)}_${Number(longitude).toFixed(4)}`;

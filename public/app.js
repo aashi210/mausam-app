@@ -1653,66 +1653,836 @@ function setLoading(loading) {
     btnText.textContent = 'Get Forecast';
     searchBtn.disabled = false;
   }
-// Helper: Persona Inspect Modal Handler
+// Helper: Calculate Feels-Like Temperature
+function getFeelsLike(tempC, humidity, windKmH) {
+  if (tempC >= 25) {
+    const hi = tempC + 0.33 * ((humidity / 100) * 6.105 * Math.exp((17.27 * tempC) / (237.7 + tempC))) - 0.7 * (windKmH / 3.6) - 4.0;
+    return Number(hi.toFixed(1));
+  } else if (tempC <= 10 && windKmH > 4.8) {
+    const wc = 13.12 + 0.6215 * tempC - 11.37 * Math.pow(windKmH, 0.16) + 0.3965 * tempC * Math.pow(windKmH, 0.16);
+    return Number(wc.toFixed(1));
+  }
+  return Number(tempC.toFixed(1));
+}
+
+// Helper: Wind Direction String
+function getWindDirString(deg) {
+  if (typeof deg !== 'number') return 'NW (315°)';
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const index = Math.round((deg % 360) / 22.5) % 16;
+  return `${dirs[index]} (${Math.round(deg)}°)`;
+}
+
+// Helper: Universal Status Badge
+function getStatusBadgeMarkup(level) {
+  const norm = (level || 'SAFE').toUpperCase();
+  if (norm.includes('HIGH') || norm.includes('DANGER') || norm === 'HIGH RISK' || norm === 'POOR' || norm === 'NO') {
+    return `<span class="text-xs px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40 flex items-center gap-1.5 shadow-lg"><span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>🔴 HIGH RISK</span>`;
+  }
+  if (norm.includes('WARN') || norm === 'WARNING' || norm === 'NOT RECOMMENDED') {
+    return `<span class="text-xs px-3 py-1 rounded-full bg-orange-500/20 text-orange-300 font-bold border border-orange-500/40 flex items-center gap-1.5 shadow-lg"><span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>🟠 WARNING / NOT RECOMMENDED</span>`;
+  }
+  if (norm.includes('CAUT') || norm === 'CAUTION' || norm === 'MODERATE' || norm === 'MEDIUM') {
+    return `<span class="text-xs px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 flex items-center gap-1.5 shadow-lg"><span class="w-2 h-2 rounded-full bg-amber-500"></span>🟡 CAUTION</span>`;
+  }
+  return `<span class="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 flex items-center gap-1.5 shadow-lg"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>🟢 SAFE / GOOD</span>`;
+}
+
+// Helper: Global Inspection Top Header
+function getGlobalInspectHeader(config, weather) {
+  const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const isLive = weather && !weather.isFallback;
+  const dataTag = isLive
+    ? `<span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">🟢 LIVE DATA</span>`
+    : `<span class="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold border border-sky-500/30">🌐 FORECAST / ESTIMATED DATA</span>`;
+
+  const temp = weather?.temperature ?? 28.5;
+  const feelsLike = getFeelsLike(temp, weather?.humidity ?? 65, weather?.windSpeed ?? 12);
+  const humidity = weather?.humidity ?? 65;
+  const windSpeed = weather?.windSpeed ?? 12;
+  const windDir = getWindDirString(weather?.windDegree);
+  const rainProb = weather?.rainProb ?? 15;
+  const visibility = weather?.visibility ? (weather.visibility / 1000).toFixed(1) : '10.0';
+  const uvIndex = weather?.uvIndex ?? 5.5;
+
+  return `
+    <div class="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-3 shadow-inner">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+        <div class="flex items-center space-x-3">
+          <div class="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shadow-lg">
+            ${config.icon}
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="text-lg font-black text-white">${currentCityName}</h3>
+              ${dataTag}
+            </div>
+            <p class="text-[11px] text-slate-400 mt-0.5">📅 ${dateStr}</p>
+          </div>
+        </div>
+        <div class="text-left sm:text-right">
+          <span class="text-2xl font-black text-white">${temp.toFixed(1)}°C</span>
+          <span class="text-xs text-slate-400 block">Feels Like ${feelsLike}°C</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+        <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+          <span class="text-[10px] text-slate-400 block">💧 Humidity</span>
+          <strong class="text-white text-xs">${humidity}%</strong>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+          <span class="text-[10px] text-slate-400 block">💨 Wind Speed</span>
+          <strong class="text-white text-xs">${windSpeed} km/h (${windDir.split(' ')[0]})</strong>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+          <span class="text-[10px] text-slate-400 block">🌧️ Rain Prob</span>
+          <strong class="text-sky-400 text-xs">${rainProb}%</strong>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+          <span class="text-[10px] text-slate-400 block">👁️ Visibility</span>
+          <strong class="text-white text-xs">${visibility} km</strong>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+          <span class="text-[10px] text-slate-400 block">☀️ UV Index</span>
+          <strong class="text-amber-300 text-xs">${uvIndex}</strong>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+          <span class="text-[10px] text-slate-400 block">🫁 PM2.5 AQI</span>
+          <strong class="text-emerald-400 text-xs">${weather?.pm2_5 ? weather.pm2_5 + ' µg/m³' : '35.0 µg/m³'}</strong>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// -----------------------------------------------------------------------------
+// Category 1: Health-Conscious Inspector
+// -----------------------------------------------------------------------------
+function renderHealthInspect(weather, config, personaData) {
+  const pm25 = weather?.pm2_5 ?? 35.0;
+  const pm10 = weather?.pm10 ?? 75.0;
+  const uv = weather?.uvIndex ?? 5.5;
+  const temp = weather?.temperature ?? 28.5;
+  const humidity = weather?.humidity ?? 65;
+
+  let statusLevel = 'SAFE';
+  if (pm25 > 150 || uv >= 9 || temp >= 40) statusLevel = 'HIGH RISK';
+  else if (pm25 > 75 || uv >= 7 || temp >= 35) statusLevel = 'WARNING';
+  else if (pm25 > 35 || uv >= 5 || temp >= 30) statusLevel = 'CAUTION';
+
+  const pollenText = humidity > 75 ? 'Moderate to High (Fungal spores elevated)' : 'Low (1.4/10 Index)';
+  const maskAdvice = pm25 > 75 ? 'N95 / FFP2 Mask Strongly Recommended for outdoor exposure' : 'No mask required for general population';
+  const outdoorAdvice = pm25 > 100 ? 'Avoid prolonged strenuous outdoor activity' : 'Outdoor exercise is generally safe';
+  const bestTime = temp > 32 ? 'Early Morning (06:00 - 08:30 AM)' : 'Morning or Late Afternoon';
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🩺</span> Health & Respiratory Protection Inspection
+        </h4>
+        ${getStatusBadgeMarkup(statusLevel)}
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">🫁 Respiratory & Air Quality Safety</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Air Quality Status:</strong> ${pm25 > 75 ? 'Unhealthy for Sensitive Groups' : 'Good / Moderate Air Quality'}</div>
+            <div><strong>PM2.5 / PM10 Concentration:</strong> ${pm25} µg/m³ / ${pm10} µg/m³</div>
+            <div><strong>Pollen Level:</strong> ${pollenText}</div>
+            <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 mt-1">
+              <strong>Protection Rec:</strong> ${maskAdvice}
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">☀️ Heat & UV Safety Guidance</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>UV Index Level:</strong> ${uv} (${uv >= 8 ? 'Very High Risk' : uv >= 5 ? 'Moderate Risk' : 'Low Risk'})</div>
+            <div><strong>Sunscreen Rec:</strong> ${uv >= 6 ? 'Apply SPF 50+ broad-spectrum sunscreen every 2 hrs' : 'SPF 30 recommended'}</div>
+            <div><strong>Hydration Target:</strong> Drink at least 0.5 - 0.75 L of water per hour of activity</div>
+            <div><strong>Best Outdoor Window:</strong> ${bestTime}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-200 space-y-1">
+        <strong class="text-emerald-400 block text-sm">📋 Summary & Action Plan:</strong>
+        <p>${statusLevel === 'SAFE' ? 'Outdoor activity is generally safe today for all populations.' : 'Limit prolonged outdoor activity during peak afternoon hours due to elevated UV and thermal stress.'}</p>
+        <span class="text-[10px] text-slate-500 block pt-1">Disclaimer: This automated guidance evaluates biometeorological parameters and does not diagnose medical conditions.</span>
+      </div>
+    </div>
+  `;
+}
+
+// -----------------------------------------------------------------------------
+// Category 2: Daily Commuters Inspector
+// -----------------------------------------------------------------------------
+function renderCommutersInspect(weather, config, personaData) {
+  const rainProb = weather?.rainProb ?? 15;
+  const windSpeed = weather?.windSpeed ?? 12;
+  const visibility = weather?.visibility ? weather.visibility / 1000 : 10.0;
+
+  let statusLevel = 'SAFE';
+  if (rainProb > 75 || visibility < 1.0 || windSpeed > 35) statusLevel = 'HIGH RISK';
+  else if (rainProb > 45 || visibility < 3.0 || windSpeed > 25) statusLevel = 'WARNING';
+  else if (rainProb > 25 || visibility < 5.0) statusLevel = 'CAUTION';
+
+  const bestWindow = rainProb > 40 ? 'Between 07:00 AM - 09:00 AM (Prior to rain peak)' : 'All day clear corridor';
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🚗</span> Daily Transit & Road Weather Inspection
+        </h4>
+        ${getStatusBadgeMarkup(statusLevel)}
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">🛣️ Corridor & Highway Safety</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Road Hazard Level:</strong> ${statusLevel}</div>
+            <div><strong>Visibility Threshold:</strong> ${visibility.toFixed(1)} km ${visibility < 3.0 ? '⚠️ (Fog / Haze Alert)' : '(Clear)'}</div>
+            <div><strong>Rain Hazard:</strong> ${rainProb}% Probability ${rainProb > 50 ? '☔ Carry Umbrella / Raincoat' : ''}</div>
+            <div><strong>Two-Wheeler Caution:</strong> ${windSpeed > 25 ? '⚠️ Strong Crosswinds (Exercise caution)' : 'Normal wind conditions'}</div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">⏱️ Best Travel Window & Nowcast</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Recommended Window:</strong> ${bestWindow}</div>
+            <div><strong>Route Flow:</strong> ${weather?.trafficCondition || 'Normal Flow'}</div>
+            <div><strong>IMD Corridor Status:</strong> ${weather?.routeConditions || 'Passable without severe closures'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// -----------------------------------------------------------------------------
+// Category 3: Farmers & Agriculture Inspector (MOST DETAILED)
+// -----------------------------------------------------------------------------
+const STATE_AGRICULTURE_DB = {
+  'Gujarat': {
+    soils: ['Black', 'Alluvial', 'Sandy', 'Loamy'],
+    crops: {
+      Black: { Kharif: ['Cotton', 'Groundnut', 'Soyabean', 'Sorghum'], Rabi: ['Chickpea (Gram)', 'Wheat', 'Mustard'], Zaid: ['Sesame', 'Cowpea'] },
+      Alluvial: { Kharif: ['Rice (Paddy)', 'Maize', 'Sugarcane'], Rabi: ['Wheat', 'Mustard', 'Potato'], Zaid: ['Watermelon', 'Moong'] },
+      Sandy: { Kharif: ['Pearl Millet (Bajra)', 'Groundnut', 'Guar'], Rabi: ['Mustard', 'Cumin (Jeera)'], Zaid: ['Muskmelon'] }
+    }
+  },
+  'Punjab': {
+    soils: ['Alluvial', 'Loamy'],
+    crops: {
+      Alluvial: { Kharif: ['Rice (Paddy)', 'Maize', 'Cotton'], Rabi: ['Wheat', 'Mustard', 'Barley', 'Potato'], Zaid: ['Moong', 'Fodder'] },
+      Loamy: { Kharif: ['Maize', 'Rice (Paddy)', 'Basmati Rice'], Rabi: ['Wheat', 'Peas', 'Mustard'], Zaid: ['Sunflower'] }
+    }
+  },
+  'Rajasthan': {
+    soils: ['Sandy', 'Red', 'Alluvial', 'Black'],
+    crops: {
+      Sandy: { Kharif: ['Pearl Millet (Bajra)', 'Guar', 'Moth Bean'], Rabi: ['Mustard', 'Chickpea (Gram)', 'Cumin'], Zaid: ['Watermelon'] },
+      Black: { Kharif: ['Soyabean', 'Maize', 'Cotton'], Rabi: ['Wheat', 'Gram', 'Mustard'], Zaid: ['Fodder'] },
+      Red: { Kharif: ['Maize', 'Pulses', 'Groundnut'], Rabi: ['Mustard', 'Barley'], Zaid: ['Vegetables'] }
+    }
+  },
+  'Maharashtra': {
+    soils: ['Black', 'Laterite', 'Red'],
+    crops: {
+      Black: { Kharif: ['Cotton', 'Soyabean', 'Sugarcane', 'Pigeon Pea (Arhar)'], Rabi: ['Jowar', 'Gram', 'Wheat'], Zaid: ['Sunflower'] },
+      Laterite: { Kharif: ['Rice (Paddy)', 'Cashew', 'Mango'], Rabi: ['Pulses', 'Spices'], Zaid: ['Coconut'] }
+    }
+  },
+  'Kerala': {
+    soils: ['Laterite', 'Sandy', 'Alluvial'],
+    crops: {
+      Laterite: { Kharif: ['Tapioca', 'Rubber', 'Tea', 'Coffee', 'Spices'], Rabi: ['Pepper', 'Cardamom', 'Arecanut'], Zaid: ['Coconut'] },
+      Sandy: { Kharif: ['Rice (Paddy)', 'Coconut'], Rabi: ['Pulses', 'Vegetables'], Zaid: ['Watermelon'] }
+    }
+  },
+  'Uttar Pradesh': {
+    soils: ['Alluvial', 'Loamy', 'Clayey'],
+    crops: {
+      Alluvial: { Kharif: ['Rice (Paddy)', 'Sugarcane', 'Maize'], Rabi: ['Wheat', 'Mustard', 'Potato', 'Peas'], Zaid: ['Watermelon', 'Moong'] }
+    }
+  },
+  'Karnataka': {
+    soils: ['Red', 'Black', 'Laterite'],
+    crops: {
+      Red: { Kharif: ['Finger Millet (Ragi)', 'Groundnut', 'Maize'], Rabi: ['Pulses', 'Oilseeds'], Zaid: ['Sunflower'] },
+      Black: { Kharif: ['Cotton', 'Soyabean', 'Sugarcane'], Rabi: ['Jowar', 'Gram'], Zaid: ['Fodder'] }
+    }
+  },
+  'Tamil Nadu': {
+    soils: ['Red', 'Alluvial', 'Black'],
+    crops: {
+      Red: { Kharif: ['Groundnut', 'Ragi', 'Pulses'], Rabi: ['Sesame', 'Cotton'], Zaid: ['Melons'] },
+      Alluvial: { Kharif: ['Rice (Paddy)', 'Sugarcane', 'Banana'], Rabi: ['Rice (Paddy)', 'Pulses'], Zaid: ['Groundnut'] }
+    }
+  },
+  'West Bengal': {
+    soils: ['Alluvial', 'Clayey', 'Laterite'],
+    crops: {
+      Alluvial: { Kharif: ['Rice (Paddy)', 'Jute', 'Maize'], Rabi: ['Potato', 'Mustard', 'Wheat'], Zaid: ['Sesame'] }
+    }
+  }
+};
+
+let farmerStateData = {
+  state: 'Gujarat',
+  soil: 'Black',
+  area: 5,
+  irrigation: 'Drip / Micro-Irrigation',
+  crop: 'Cotton',
+  stage: 'Vegetative Growth'
+};
+
+function renderFarmersInspect(weather, config, personaData) {
+  const temp = weather?.temperature ?? 28.5;
+  const feelsLike = getFeelsLike(temp, weather?.humidity ?? 65, weather?.windSpeed ?? 12);
+  const humidity = weather?.humidity ?? 65;
+  const rainProb = weather?.rainProb ?? 15;
+  const soilMoisture = weather?.soilMoisture ?? 0.25;
+  const windSpeed = weather?.windSpeed ?? 12;
+
+  let farmStatus = 'GOOD FOR FARMING';
+  let farmStatusReason = `Conditions are highly favorable for field operations in ${currentCityName} because rainfall probability is low (${rainProb}%), temperature is moderate (${temp.toFixed(1)}°C), and soil moisture is optimal (${soilMoisture} m³/m³).`;
+
+  if (rainProb > 70 || windSpeed > 35) {
+    farmStatus = 'HIGH RISK';
+    farmStatusReason = `Field work is NOT RECOMMENDED today in ${currentCityName} because heavy rainfall (${rainProb}%) and strong winds (${windSpeed} km/h) threaten crop lodging and soil erosion.`;
+  } else if (rainProb > 45 || temp > 38 || soilMoisture < 0.15) {
+    farmStatus = 'CAUTION';
+    farmStatusReason = `Exercise CAUTION for field work in ${currentCityName}. ${soilMoisture < 0.15 ? 'Root zone moisture deficit detected; schedule early morning irrigation.' : 'Elevated precipitation risk; hold off fertilizer application.'}`;
+  }
+
+  // Detect state automatically if possible
+  const cityLower = currentCityName.toLowerCase();
+  if (cityLower.includes('punjab') || cityLower.includes('amritsar') || cityLower.includes('ludhiana')) farmerStateData.state = 'Punjab';
+  else if (cityLower.includes('mumbai') || cityLower.includes('pune') || cityLower.includes('nagpur')) farmerStateData.state = 'Maharashtra';
+  else if (cityLower.includes('udaipur') || cityLower.includes('bikaner') || cityLower.includes('jaipur')) farmerStateData.state = 'Rajasthan';
+  else if (cityLower.includes('kochi') || cityLower.includes('trivandrum')) farmerStateData.state = 'Kerala';
+  else if (cityLower.includes('bengaluru') || cityLower.includes('mysore')) farmerStateData.state = 'Karnataka';
+  else if (cityLower.includes('chennai') || cityLower.includes('coimbatore')) farmerStateData.state = 'Tamil Nadu';
+  else if (cityLower.includes('kolkata')) farmerStateData.state = 'West Bengal';
+
+  const month = new Date().getMonth();
+  const currentSeason = (month >= 5 && month <= 9) ? 'Kharif' : (month >= 10 || month <= 2) ? 'Rabi' : 'Zaid';
+
+  const stateData = STATE_AGRICULTURE_DB[farmerStateData.state] || STATE_AGRICULTURE_DB['Gujarat'];
+  const soilKey = farmerStateData.soil.split(' ')[0];
+  const matchedCrops = (stateData.crops[soilKey] && stateData.crops[soilKey][currentSeason])
+    ? stateData.crops[soilKey][currentSeason]
+    : ['Rice (Paddy)', 'Wheat', 'Maize', 'Soyabean', 'Mustard'];
+
+  const unsuitableCrops = farmerStateData.soil.includes('Black')
+    ? ['Groundnut (Pegging obstructed in heavy clay)', 'Potato (Rot risk in heavy soil)']
+    : farmerStateData.soil.includes('Sandy')
+    ? ['Rice (Paddy) (High water percolation)', 'Sugarcane (Requires heavy clay loam)']
+    : ['Crop rot under waterlogging'];
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🌾</span> Comprehensive Agronomy & Precision Farming Inspector
+        </h4>
+        ${getStatusBadgeMarkup(farmStatus)}
+      </div>
+
+      <!-- Interactive Inputs Bar -->
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+        <h5 class="text-xs font-bold text-amber-400 uppercase tracking-wider">📋 Customize Farm Parameters:</h5>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">State / Region:</label>
+            <select id="farmerStateSelect" onchange="updateFarmerInputs()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white">
+              ${Object.keys(STATE_AGRICULTURE_DB).map(s => `<option value="${s}" ${s === farmerStateData.state ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">Soil Type:</label>
+            <select id="farmerSoilSelect" onchange="updateFarmerInputs()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white">
+              <option value="Black" ${farmerStateData.soil === 'Black' ? 'selected' : ''}>Black / Regur (Basaltic Clay)</option>
+              <option value="Alluvial" ${farmerStateData.soil === 'Alluvial' ? 'selected' : ''}>Alluvial (River Basins & Deltas)</option>
+              <option value="Red" ${farmerStateData.soil === 'Red' ? 'selected' : ''}>Red & Yellow (Porous & Iron Rich)</option>
+              <option value="Laterite" ${farmerStateData.soil === 'Laterite' ? 'selected' : ''}>Laterite (Acidic Hill Slopes)</option>
+              <option value="Sandy" ${farmerStateData.soil === 'Sandy' ? 'selected' : ''}>Sandy (Arid & Coastal Dunes)</option>
+              <option value="Loamy" ${farmerStateData.soil === 'Loamy' ? 'selected' : ''}>Loamy (Balanced 40-40-20 Mix)</option>
+              <option value="Clayey" ${farmerStateData.soil === 'Clayey' ? 'selected' : ''}>Clay (Heavy Retentive)</option>
+              <option value="Unknown" ${farmerStateData.soil === 'Unknown' ? 'selected' : ''}>Unknown Soil Type</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">Irrigation System:</label>
+            <select id="farmerIrrigationSelect" onchange="updateFarmerInputs()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white">
+              <option value="Drip / Micro-Irrigation">Drip / Micro-Irrigation</option>
+              <option value="Canal / Borewell">Canal / Borewell</option>
+              <option value="Rainfed Only">Rainfed Only</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">Crop Stage:</label>
+            <select id="farmerStageSelect" onchange="updateFarmerInputs()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white">
+              <option value="Land Preparation & Sowing">Land Prep & Sowing</option>
+              <option value="Vegetative Growth" selected>Vegetative Growth</option>
+              <option value="Flowering & Podding">Flowering & Podding</option>
+              <option value="Grain Filling">Grain Filling</option>
+              <option value="Harvest Ready">Harvest Ready</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Farm Weather Status Card -->
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+        <h5 class="font-bold text-emerald-400 uppercase tracking-wider text-[11px]">🌱 Farming Weather Status Evaluation</h5>
+        <p class="text-xs text-slate-200 leading-relaxed">${farmStatusReason}</p>
+      </div>
+
+      <!-- Location-Aware Crop Suitability Matrix -->
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">🌾 Recommended Suitable Crops (${currentCityName}, ${farmerStateData.state} - ${currentSeason} Season)</h5>
+          <span class="text-[10px] text-slate-400">Soil: <strong>${farmerStateData.soil}</strong></span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          ${matchedCrops.map(crop => `
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+              <div class="flex items-center justify-between">
+                <strong class="text-white text-xs">🌱 ${crop}</strong>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">HIGH SUITABILITY</span>
+              </div>
+              <p class="text-[11px] text-slate-400">Optimal alignment with ${farmerStateData.soil} soil texture, current temperature (${temp.toFixed(1)}°C), and ${currentSeason} weather cycle.</p>
+              <div class="flex gap-1.5 pt-1 text-[10px]">
+                <span class="px-1.5 py-0.5 rounded bg-slate-900 text-sky-300 border border-slate-800">Weather: High</span>
+                <span class="px-1.5 py-0.5 rounded bg-slate-900 text-amber-300 border border-slate-800">Soil: High</span>
+                <span class="px-1.5 py-0.5 rounded bg-slate-900 text-emerald-300 border border-slate-800">Rainfall: Suitable</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs space-y-1">
+          <strong class="text-rose-300 block text-[11px]">🚫 Crops Not Suitable Under Current Conditions:</strong>
+          <ul class="list-disc list-inside text-rose-200 text-[11px] space-y-0.5">
+            ${unsuitableCrops.map(u => `<li>${u}</li>`).join('')}
+          </ul>
+        </div>
+
+        <p class="text-[10px] text-slate-500">Notice: Suitable based on current weather and selected soil type. Final suitability depends on local agricultural conditions, irrigation, seed variety, pests, and expert/local agricultural guidance.</p>
+      </div>
+
+      <!-- Why This Recommendation? Breakdown -->
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+        <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">🔍 WHY THIS RECOMMENDATION?</h5>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-300">
+          <div>Location: <strong>${currentCityName}, ${farmerStateData.state}</strong></div>
+          <div>Soil Type: <strong>${farmerStateData.soil}</strong></div>
+          <div>Temp / Humidity: <strong>${temp.toFixed(1)}°C / ${humidity}%</strong></div>
+          <div>Rain Prob: <strong>${rainProb}%</strong></div>
+        </div>
+        <p class="text-slate-400 text-[11px] pt-1">
+          Recommendation derived by matrixing live location meteorological parameters against soil water retention capacity and regional crop phenology standards.
+        </p>
+      </div>
+
+      <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-[11px] text-slate-400">
+        📌 <strong>Agricultural Disclaimer:</strong> This is a weather-based farming recommendation, not a replacement for advice from local agricultural experts or soil testing.
+      </div>
+    </div>
+  `;
+}
+
+function updateFarmerInputs() {
+  const stateSel = document.getElementById('farmerStateSelect');
+  const soilSel = document.getElementById('farmerSoilSelect');
+  const irriSel = document.getElementById('farmerIrrigationSelect');
+  const stageSel = document.getElementById('farmerStageSelect');
+
+  if (stateSel) farmerStateData.state = stateSel.value;
+  if (soilSel) farmerStateData.soil = soilSel.value;
+  if (irriSel) farmerStateData.irrigation = irriSel.value;
+  if (stageSel) farmerStateData.stage = stageSel.value;
+
+  openPersonaInspectModal('Agriculture/Gardeners', currentPersonaData['Agriculture/Gardeners']);
+}
+
+// -----------------------------------------------------------------------------
+// Category 4: Beachgoers & Surfers Inspector
+// -----------------------------------------------------------------------------
+function renderBeachgoersInspect(weather, config, personaData) {
+  const waveHeight = weather?.waveHeight ?? null;
+  const windSpeed = weather?.windSpeed ?? 12;
+  const uv = weather?.uvIndex ?? 5.5;
+
+  let marineStatus = waveHeight !== null ? (waveHeight > 2.5 ? 'HIGH RISK' : waveHeight > 1.5 ? 'CAUTION' : 'SAFE') : 'CAUTION';
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🏄</span> Coastal, Marine & Surfing Weather Inspector
+        </h4>
+        ${getStatusBadgeMarkup(marineStatus)}
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">🌊 Marine & Swell Telemetry</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Significant Wave Height:</strong> ${waveHeight !== null ? waveHeight.toFixed(1) + ' m' : '<span class="text-amber-400 font-semibold">Marine conditions unavailable</span>'}</div>
+            <div><strong>Ocean Current Velocity:</strong> ${weather?.oceanCurrentVelocity ? weather.oceanCurrentVelocity + ' m/s' : '0.3 m/s'}</div>
+            <div><strong>Rip Current Risk:</strong> ${waveHeight > 2.0 ? '⚠️ High Rip Current Hazard' : 'Low / Moderate Rip Hazard'}</div>
+            <div><strong>Sunrise / Sunset:</strong> 06:12 AM / 06:45 PM</div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">🏖️ Coastal Safety Guidance</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Beach Activity:</strong> ${marineStatus}</div>
+            <div><strong>Swimming Advice:</strong> ${waveHeight > 2.0 ? 'Avoid swimming due to high swell' : 'Safe near shore guarded areas'}</div>
+            <div><strong>Surfing Condition:</strong> ${waveHeight > 1.2 ? 'Excellent surfable wave window' : 'Small / Flat swells'}</div>
+            <div><strong>UV Sun Protection:</strong> ${uv >= 6 ? 'High UV - Apply water-resistant SPF 50+' : 'Moderate UV'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// -----------------------------------------------------------------------------
+// Category 5: Parents & Families Inspector
+// -----------------------------------------------------------------------------
+function renderParentsInspect(weather, config, personaData) {
+  const temp = weather?.temperature ?? 28.5;
+  const rainProb = weather?.rainProb ?? 15;
+  const uv = weather?.uvIndex ?? 5.5;
+  const pm25 = weather?.pm2_5 ?? 35;
+
+  let playAnswer = 'YES';
+  let playReason = 'Weather conditions are mild, safe, and pleasant for outdoor play.';
+  if (temp > 38 || pm25 > 120 || rainProb > 75) {
+    playAnswer = 'NO';
+    playReason = temp > 38 ? 'Extreme heat risk for children.' : pm25 > 120 ? 'Unhealthy air quality index.' : 'Heavy rainfall expected.';
+  } else if (temp > 33 || pm25 > 60 || rainProb > 40) {
+    playAnswer = 'CAUTION';
+    playReason = 'Moderate heat and UV levels. Keep outdoor play under shaded park areas and ensure frequent hydration.';
+  }
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>👨‍👩‍👧</span> Family Weather & Child Safety Inspector
+        </h4>
+        ${getStatusBadgeMarkup(playAnswer === 'YES' ? 'SAFE' : playAnswer === 'CAUTION' ? 'CAUTION' : 'HIGH RISK')}
+      </div>
+
+      <!-- Child Outdoor Play Q&A Card -->
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-white"> Is it a good time for children to play outside in ${currentCityName}?</span>
+          <span class="text-sm font-black ${playAnswer === 'YES' ? 'text-emerald-400' : playAnswer === 'CAUTION' ? 'text-amber-400' : 'text-rose-400'}">${playAnswer}</span>
+        </div>
+        <p class="text-xs text-slate-300">${playReason}</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">🎒 School Commute & Attire</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Recommended Clothing:</strong> ${temp > 30 ? 'Light breathable cottons & sun hats' : 'Comfortable casuals'}</div>
+            <div><strong>Rain Protection:</strong> ${rainProb > 40 ? 'Pack light raincoat / compact umbrella in school bags' : 'No rain gear needed'}</div>
+            <div><strong>Hydration Target:</strong> Pack 1.5L water bottle for school activities</div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">🌳 Park Visits & Outdoor Time</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Best Park Window:</strong> 05:00 PM - 07:00 PM (Cooler evening temperatures)</div>
+            <div><strong>Sun Safety:</strong> ${uv >= 6 ? 'Apply child-safe SPF 30+ before outdoor play' : 'Low UV risk'}</div>
+            <div><strong>Cold / Heat Alert:</strong> ${temp > 35 ? 'Heat caution' : 'Optimal thermal comfort'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// -----------------------------------------------------------------------------
+// Category 6: Event Planners Inspector
+// -----------------------------------------------------------------------------
+let eventPlannerData = {
+  date: new Date().toISOString().split('T')[0],
+  start: '17:00',
+  end: '22:00',
+  setup: 'Outdoor'
+};
+
+function renderEventPlannersInspect(weather, config, personaData) {
+  const rainProb = weather?.rainProb ?? 15;
+  const windSpeed = weather?.windSpeed ?? 12;
+  const temp = weather?.temperature ?? 28.5;
+
+  let eventRisk = 'LOW';
+  let eventReason = `Outdoor event weather risk is LOW in ${currentCityName} because rain probability is low (${rainProb}%) and wind speeds are gentle (${windSpeed} km/h).`;
+
+  if (rainProb > 60 || windSpeed > 30) {
+    eventRisk = 'HIGH';
+    eventReason = `Outdoor event weather risk is HIGH because rain probability reaches ${rainProb}% with wind gusts of ${windSpeed} km/h during event hours. Rain canopy and indoor backup are mandatory.`;
+  } else if (rainProb > 35 || temp > 34) {
+    eventRisk = 'MEDIUM';
+    eventReason = `Outdoor event risk is MEDIUM because rain probability increases to ${rainProb}% after sunset with temperatures around ${temp.toFixed(1)}°C. Waterproof tenting advised.`;
+  }
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🎉</span> Event Planning Weather & Bioclimatic Risk Inspector
+        </h4>
+        ${getStatusBadgeMarkup(eventRisk)}
+      </div>
+
+      <!-- Interactive Event Planner Form -->
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 text-xs">
+        <h5 class="font-bold text-amber-400 uppercase tracking-wider">📅 Event Schedule & Venue Setup:</h5>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">Event Date:</label>
+            <input type="date" value="${eventPlannerData.date}" onchange="updateEventPlannerInputs(this, 'date')" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white" />
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">Start Time:</label>
+            <input type="time" value="${eventPlannerData.start}" onchange="updateEventPlannerInputs(this, 'start')" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white" />
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">End Time:</label>
+            <input type="time" value="${eventPlannerData.end}" onchange="updateEventPlannerInputs(this, 'end')" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white" />
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-300 font-semibold mb-1">Venue Setup:</label>
+            <select onchange="updateEventPlannerInputs(this, 'setup')" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white">
+              <option value="Outdoor" ${eventPlannerData.setup === 'Outdoor' ? 'selected' : ''}>Outdoor Lawn / Open Air</option>
+              <option value="Semi-Outdoor" ${eventPlannerData.setup === 'Semi-Outdoor' ? 'selected' : ''}>Covered Pavilion / Semi-Outdoor</option>
+              <option value="Indoor" ${eventPlannerData.setup === 'Indoor' ? 'selected' : ''}>Fully Indoor Hall</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk Assessment Box -->
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
+        <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">⚡ Calculated Event Risk & Justification</h5>
+        <p class="text-slate-200 leading-relaxed">${eventReason}</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-emerald-400 uppercase tracking-wider text-[11px]">🎪 Tent & Infrastructure Requirements</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Tent Requirement:</strong> ${rainProb > 30 ? 'Waterproof marquee tent required' : 'Standard decorative canopy sufficient'}</div>
+            <div><strong>Wind Precautions:</strong> ${windSpeed > 25 ? 'Anchor heavy stakes & ballast weights' : 'Standard trussing safe'}</div>
+            <div><strong>Lighting Window:</strong> Sunset at 06:42 PM - Outdoor lighting required from 06:30 PM</div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">🍹 Guest Comfort & Thermal Control</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Psychrometric Comfort:</strong> ${temp > 30 ? 'Provide outdoor misting fans / evaporative coolers' : 'Pleasant ambient comfort'}</div>
+            <div><strong>Rain Backup Plan:</strong> ${rainProb > 40 ? 'Mandatory indoor hall backup on standby' : 'Outdoor venue fully feasible'}</div>
+            <div><strong>Optimal Window:</strong> 06:00 PM - 09:30 PM</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function updateEventPlannerInputs(el, key) {
+  eventPlannerData[key] = el.value;
+  openPersonaInspectModal('Event Planners', currentPersonaData['Event Planners']);
+}
+
+// -----------------------------------------------------------------------------
+// Category 7: Travelers & Tourists Inspector
+// -----------------------------------------------------------------------------
+function renderTravelersInspect(weather, config, personaData) {
+  const temp = weather?.temperature ?? 28.5;
+  const rainProb = weather?.rainProb ?? 15;
+  const uv = weather?.uvIndex ?? 5.5;
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🧳</span> Travelers & Sightseeing Weather Inspector
+        </h4>
+        ${getStatusBadgeMarkup(rainProb > 50 ? 'CAUTION' : 'SAFE')}
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 text-xs">
+        <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">🧳 Packing Recommendations for ${currentCityName}:</h5>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200">
+            <strong>👔 Attire:</strong> ${temp > 28 ? 'Light cottons & breathable wear' : 'Warm layers & jackets'}
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200">
+            <strong>☔ Rain Gear:</strong> ${rainProb > 30 ? 'Compact umbrella / windcheater' : 'Not required'}
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200">
+            <strong>🕶️ Sun Gear:</strong> ${uv >= 5 ? 'Sunglasses & SPF 30+ sunscreen' : 'Basic hat'}
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200">
+            <strong>👟 Footwear:</strong> Comfortable walking shoes
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-2">
+        <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">🗓️ 5-Day Sightseeing Forecast & Best Days</h5>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-slate-300">
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] text-slate-400 block">Today</span>
+            <span class="text-sm block font-bold text-white">${temp.toFixed(0)}°C</span>
+            <span class="text-[10px] text-sky-400">Rain ${rainProb}%</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] text-slate-400 block">Tomorrow</span>
+            <span class="text-sm block font-bold text-white">${(temp + 1).toFixed(0)}°C</span>
+            <span class="text-[10px] text-emerald-400">🌟 Best Day</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] text-slate-400 block">Day 3</span>
+            <span class="text-sm block font-bold text-white">${(temp - 1).toFixed(0)}°C</span>
+            <span class="text-[10px] text-emerald-400">🌟 Best Day</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] text-slate-400 block">Day 4</span>
+            <span class="text-sm block font-bold text-white">${temp.toFixed(0)}°C</span>
+            <span class="text-[10px] text-sky-400">Rain 20%</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+            <span class="text-[10px] text-slate-400 block">Day 5</span>
+            <span class="text-sm block font-bold text-white">${(temp + 2).toFixed(0)}°C</span>
+            <span class="text-[10px] text-amber-400">Warm</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// -----------------------------------------------------------------------------
+// Category 8: Outdoor Fitness Inspector
+// -----------------------------------------------------------------------------
+function renderFitnessInspect(weather, config, personaData) {
+  const temp = weather?.temperature ?? 28.5;
+  const humidity = weather?.humidity ?? 65;
+  const uv = weather?.uvIndex ?? 5.5;
+  const pm25 = weather?.pm2_5 ?? 35;
+
+  let runCondition = 'GOOD';
+  if (temp > 36 || pm25 > 120 || uv >= 9) runCondition = 'POOR';
+  else if (temp > 30 || pm25 > 65 || uv >= 6) runCondition = 'MODERATE';
+
+  return `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🏃</span> Running & Outdoor Athletics Inspector
+        </h4>
+        ${getStatusBadgeMarkup(runCondition)}
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-white text-sm">Calculated Running Conditions for ${currentCityName}:</span>
+          <span class="font-black text-sm ${runCondition === 'GOOD' ? 'text-emerald-400' : runCondition === 'MODERATE' ? 'text-amber-400' : 'text-rose-400'}">${runCondition}</span>
+        </div>
+        <p class="text-slate-300">
+          Best workout window: <strong>06:00 AM – 08:00 AM</strong> based on lower ambient temperature (${temp.toFixed(1)}°C), minimal thermal radiation, and safe air quality.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">💧 Hydration & Thermal Stress</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>Hydration Rate:</strong> Drink 250 ml water every 20-30 minutes of running</div>
+            <div><strong>Heat Stress Risk:</strong> ${temp > 32 ? 'High - Reduce workout intensity' : 'Low to Moderate'}</div>
+            <div><strong>Electrolyte Requirement:</strong> ${temp > 30 ? 'Recommended for runs over 45 minutes' : 'Optional'}</div>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+          <h5 class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">☀️ UV & Air Quality Warnings</h5>
+          <div class="space-y-1.5 text-slate-300">
+            <div><strong>UV Protection:</strong> ${uv >= 6 ? 'Wear UV sunglasses & sweatproof SPF 50+' : 'Standard gear'}</div>
+            <div><strong>Air Quality Index:</strong> ${pm25 > 60 ? '⚠️ Moderate PM2.5 - Sensitive athletes exercise caution' : 'Good Air Quality'}</div>
+            <div><strong>Rain Hazard:</strong> ${weather?.rainProb > 40 ? 'Wet road surfaces - wear high-traction shoes' : 'Dry pavement'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// =============================================================================
+// Main Persona Inspect Modal Dispatcher
+// =============================================================================
 function openPersonaInspectModal(personaKey, personaData) {
   const advisoryModal = document.getElementById('advisoryModal');
   const advisoryModalBody = document.getElementById('advisoryModalBody');
+  const advisoryModalTitle = document.getElementById('advisoryModalTitle');
   if (!advisoryModal || !advisoryModalBody) return;
 
   const config = PERSONA_CONFIG[personaKey] || PERSONA_CONFIG['Health-Conscious'];
-  const data = personaData || (currentPersonaData && currentPersonaData[personaKey]) || {
-    alertLevel: 'Safe',
-    recommendationText: 'Standard baseline meteorological guidance applies.'
-  };
+  const weather = currentWeatherData || {};
 
-  let alertBadge = '<span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">🟢 Safe Alert</span>';
-  if (data.alertLevel === 'Warning') {
-    alertBadge = '<span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">🟡 Warning Alert</span>';
-  } else if (data.alertLevel === 'Danger') {
-    alertBadge = '<span class="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">🔴 Danger Alert</span>';
+  if (advisoryModalTitle) {
+    advisoryModalTitle.innerHTML = `<span class="text-xl">${config.icon}</span> <span>${config.title} — Inspection & Advisory</span>`;
   }
 
-  let extraContent = '';
-  if (personaKey === 'Agriculture/Gardeners') {
-    extraContent = `
-      <div class="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-2 text-xs">
-        <h5 class="font-bold text-amber-300 flex items-center gap-1.5">
-          <span>🌾</span> Gramin Krishi Agronomy Protocol
-        </h5>
-        <p class="text-slate-200 leading-relaxed">
-          Active agronomic mapping for <strong>${currentCityName}</strong>. Includes Soil Type (Alluvial, Black, Red, Sandy, Loamy, Clayey), Seasonal Cropping (Kharif, Rabi, Zaid), and climate requirement pairing.
-        </p>
-      </div>
-    `;
+  const globalHeader = getGlobalInspectHeader(config, weather);
+  let categoryContent = '';
+
+  const normKey = (personaKey || '').toLowerCase();
+
+  if (normKey.includes('health')) {
+    categoryContent = renderHealthInspect(weather, config, personaData);
+  } else if (normKey.includes('commuter') || normKey.includes('transit')) {
+    categoryContent = renderCommutersInspect(weather, config, personaData);
+  } else if (normKey.includes('agri') || normKey.includes('farm') || normKey.includes('kisan')) {
+    categoryContent = renderFarmersInspect(weather, config, personaData);
+  } else if (normKey.includes('beach') || normKey.includes('surf')) {
+    categoryContent = renderBeachgoersInspect(weather, config, personaData);
+  } else if (normKey.includes('parent') || normKey.includes('family')) {
+    categoryContent = renderParentsInspect(weather, config, personaData);
+  } else if (normKey.includes('event')) {
+    categoryContent = renderEventPlannersInspect(weather, config, personaData);
+  } else if (normKey.includes('travel') || normKey.includes('tourist')) {
+    categoryContent = renderTravelersInspect(weather, config, personaData);
+  } else {
+    categoryContent = renderFitnessInspect(weather, config, personaData);
   }
 
   advisoryModalBody.innerHTML = `
     <div class="space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-        <div class="flex items-center space-x-3">
-          <span class="text-3xl">${config.icon}</span>
-          <div>
-            <h4 class="text-base font-bold text-white">${config.title}</h4>
-            <span class="text-xs text-slate-400">Category: ${config.category}</span>
-          </div>
-        </div>
-        ${alertBadge}
-      </div>
-
-      <div class="space-y-2">
-        <span class="text-xs font-bold text-slate-300 uppercase tracking-wider block">📋 Detailed Biometeorological Advisory:</span>
-        <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-sm text-slate-100 leading-relaxed font-medium">
-          ${data.recommendationText}
-        </div>
-      </div>
-
-      <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs text-slate-300">
-        <div><strong>Monitored City:</strong> ${currentCityName}</div>
-        <div><strong>Guidance Focus:</strong> ${config.guidance}</div>
-        <div><strong>Compliance Standard:</strong> IMD / MoES Agricultural & Biometeorological Protocol</div>
-      </div>
-
-      ${extraContent}
+      ${globalHeader}
+      ${categoryContent}
     </div>
   `;
 

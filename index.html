@@ -924,24 +924,24 @@
     </div>
   </div>
 
-  <!-- Modal 2: IMD Warning Advisory Modal -->
+  <!-- Modal 2: Category Inspect & Weather Advisory Modal -->
   <div id="advisoryModal" class="modal-overlay">
-    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-        <h3 class="text-lg font-bold text-white flex items-center space-x-2">
-          <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
-          <span>Official IMD Weather Advisory</span>
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col p-5 sm:p-6 shadow-2xl space-y-4 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 flex-shrink-0">
+        <h3 id="advisoryModalTitle" class="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-circle-info text-sky-400"></i>
+          <span>Detailed Category Inspection & Advisory</span>
         </h3>
-        <button id="closeAdvisoryModal" type="button" class="text-slate-400 hover:text-white text-lg">✕</button>
+        <button id="closeAdvisoryModal" type="button" class="text-slate-400 hover:text-white text-lg p-1">✕</button>
       </div>
 
-      <div id="advisoryModalBody" class="text-xs leading-relaxed text-slate-300">
+      <div id="advisoryModalBody" class="text-xs leading-relaxed text-slate-300 overflow-y-auto flex-1 pr-1 custom-scrollbar space-y-4">
         <!-- Injected dynamically by app.js -->
       </div>
 
-      <div class="flex justify-end pt-2">
-        <button type="button" id="dismissAdvisoryBtn" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition">
-          Understood
+      <div class="flex justify-end pt-2 border-t border-slate-800 flex-shrink-0">
+        <button type="button" id="dismissAdvisoryBtn" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition">
+          Close Inspection
         </button>
       </div>
     </div>

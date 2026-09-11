@@ -1,6 +1,4 @@
 /**
- * SIH26076: Mausam App - Persona Logic Engine
- *
  * Ingests normalized meteorological data (temp, humidity, wind, visibility,
  * soilMoisture, PM2.5/PM10, uvIndex, waveHeight, rainProb) and outputs tailored
  * actionable recommendations and status flags ('Safe', 'Warning', 'Danger')
@@ -11,9 +9,9 @@
  * Calculates Wet Bulb Temperature (°C) using Stull's empirical psychrometric formula:
  * Stull, R. (2011). Wet-Bulb Temperature from Relative Humidity and Air Temperature.
  *
- * @param {number} T - Air temperature in °C
- * @param {number} RH - Relative humidity in %
- * @returns {number} Wet bulb temperature in °C
+ * T - Air temperature in °C
+ * RH - Relative humidity in %
+ * Wet bulb temperature in °C
  */
 function calculateWetBulbCelsius(T, RH) {
   const Tw =
@@ -29,9 +27,9 @@ function calculateWetBulbCelsius(T, RH) {
  * Calculates Temperature-Humidity Index (THI) using Thom's classic bioclimatic formula:
  * THI = 15 + 0.4 * (Temp + WetBulb) [with temperatures in °F, where THI > 80 signals severe discomfort/danger]
  *
- * @param {number} tempC - Air temperature in °C
- * @param {number} humidity - Relative humidity in %
- * @returns {number} Calculated THI rounded to 1 decimal place
+ * tempC - Air temperature in °C
+ * humidity - Relative humidity in %
+ * Calculated THI rounded to 1 decimal place
  */
 function calculateTHI(tempC, humidity) {
   // Convert dry bulb to Fahrenheit
@@ -48,9 +46,9 @@ function calculateTHI(tempC, humidity) {
 /**
  * Calculates Heat Index / Apparent Temperature in °C (Rothfusz equation)
  *
- * @param {number} tempC - Air temperature in °C
- * @param {number} humidity - Relative humidity in %
- * @returns {number} Heat Index in °C
+ * tempC - Air temperature in °C
+ * humidity - Relative humidity in %
+ * Heat Index in °C
  */
 function calculateHeatIndex(tempC, humidity) {
   if (tempC < 25) return tempC;

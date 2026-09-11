@@ -1,9 +1,3 @@
-/**
- * SIH26076: Mausam App - Express Server Entry Point (server.js)
- *
- * Boots the HTTP server, establishes database connectivity if configured,
- * and handles graceful shutdown signals.
- */
 
 require('dotenv').config();
 const mongoose = require('mongoose');
