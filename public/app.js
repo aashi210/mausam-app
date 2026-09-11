@@ -1,8 +1,7 @@
 /**
- * SIH26076: Mausam App - Frontend Client Controller & Personalization Engine (public/app.js)
+ *  Frontend Client Controller & Personalization Engine 
  * Ministry of Earth Sciences (MoES) / India Meteorological Department (IMD)
  *
- * Orchestrates client-side interactions:
  *  - Searchable Indian cities dropdown (Delhi, Mumbai, Bengaluru, Udaipur, Bikaner, etc.)
  *  - Preset location chips & HTML5 GPS detection
  *  - Multi-Source API data fetching from /api/weather (zero frontend API keys exposed)
@@ -18,11 +17,6 @@
  *  - Mausam AI Assistant side drawer chatbot
  *  - Modal managers (Advisory detail, Widget customization, Persona onboarding wizard)
  */
-
-// Dynamic API Base URL (connects GitHub Pages to live Render backend API)
-const API_BASE_URL = (window.location.hostname.includes('github.io'))
-  ? 'https://mausam-application.onrender.com'
-  : '';
 
 // Preset Indian Cities (featuring Delhi, Mumbai, Bengaluru, Udaipur, Bikaner)
 const PRESET_LOCATIONS = [
@@ -513,78 +507,6 @@ if (coordForm) {
 // =============================================================================
 // Core Weather API Fetcher (Backend /api/weather Pipeline)
 // =============================================================================
-async function fetchClientOpenMeteo(lat, lon) {
-  try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,precipitation,uv_index,visibility,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&timezone=auto`;
-    const res = await fetch(url);
-    const om = await res.json();
-    const current = om.current || {};
-    const daily = om.daily || {};
-    const hourly = om.hourly || {};
-
-    const weather = {
-      temperature: current.temperature_2m ?? 28.5,
-      humidity: current.relative_humidity_2m ?? 65,
-      soilMoisture: current.soil_moisture_0_to_1cm ?? 0.2,
-      visibility: current.visibility ?? 10000,
-      pm2_5: 35.0,
-      pm10: 75.0,
-      uvIndex: current.uv_index ?? 5.5,
-      waveHeight: 0.8,
-      oceanCurrentVelocity: 0.2,
-      windSpeed: current.wind_speed_10m ?? 12.0,
-      rainProb: (daily.precipitation_probability_max && daily.precipitation_probability_max[0]) ?? (current.precipitation ? 80 : 15),
-      imdAlert: 'Green Alert: Normal seasonal weather conditions active across district.',
-      monsoonStatus: 'Active Seasonal Weather',
-      trafficCondition: 'Normal Flow',
-      routeConditions: 'Passable - No severe road closures',
-      timestamp: new Date().toISOString(),
-      hourly: {
-        time: hourly.time || [],
-        temperature_2m: hourly.temperature_2m || [],
-        precipitation: hourly.precipitation || []
-      },
-      daily: {
-        time: daily.time || [],
-        temperature_2m_max: daily.temperature_2m_max || [],
-        temperature_2m_min: daily.temperature_2m_min || [],
-        precipitation_probability_max: daily.precipitation_probability_max || []
-      }
-    };
-
-    return { success: true, weather, personas: {} };
-  } catch (e) {
-    console.error('[Open-Meteo Fallback Error]', e);
-    return {
-      success: true,
-      weather: {
-        temperature: 28.5,
-        humidity: 65,
-        soilMoisture: 0.2,
-        visibility: 10000,
-        pm2_5: 35.0,
-        pm10: 75.0,
-        uvIndex: 5.5,
-        waveHeight: 0.8,
-        oceanCurrentVelocity: 0.2,
-        windSpeed: 12.0,
-        rainProb: 15,
-        imdAlert: 'Green Alert: Normal seasonal weather conditions active.',
-        monsoonStatus: 'Normal Activity',
-        trafficCondition: 'Normal Flow',
-        routeConditions: 'Passable',
-        timestamp: new Date().toISOString(),
-        hourly: { time: [], temperature_2m: [], precipitation: [] },
-        daily: { time: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [] }
-      },
-      personas: {}
-    };
-  }
-}
-
-// =============================================================================
-// Primary Data Controller: Multi-Source Weather & Persona Fetcher
-// =============================================================================
 async function fetchWeather(rawLat, rawLng, cityName = 'Selected Location') {
   setLoading(true);
   
@@ -595,27 +517,13 @@ async function fetchWeather(rawLat, rawLng, cityName = 'Selected Location') {
   currentCityName = cityName;
   state.currentCity = cityName;
 
-  let data = null;
-
   try {
-    if (API_BASE_URL) {
-      try {
-        const url = `${API_BASE_URL}/api/weather?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const json = await res.json();
-          if (json && json.success) data = json;
-        }
-      } catch (e) {
-        console.warn('[Mausam App] Backend timeout/unreachable, failing over to client Open-Meteo API', e);
-      }
-    }
+    const url = `/api/weather?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`;
+    const res = await fetch(url);
+    const data = await res.json();
 
-    if (!data || !data.weather) {
-      data = await fetchClientOpenMeteo(lat, lon);
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || `Server returned error ${res.status}`);
     }
 
     currentWeatherData = data.weather;
@@ -643,6 +551,7 @@ async function fetchWeather(rawLat, rawLng, cityName = 'Selected Location') {
 
   } catch (err) {
     console.error('[Mausam App ERROR]', err);
+    alert(`Failed to fetch forecast: ${err.message}`);
   } finally {
     setLoading(false);
   }
@@ -1156,6 +1065,68 @@ function displayActivePersonaDetail(personaKey, personaData) {
         </div>
       </div>
     </div>
+
+    ${personaKey === 'Agriculture/Gardeners' ? `
+    <!-- Gramin Krishi Smart Agronomy Advisory Section -->
+    <div class="mt-6 pt-5 border-t border-slate-800/80">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+          <span class="text-amber-400">🌾</span>
+          <span>Gramin Krishi Smart Agronomy & Crop-Soil Mapping Engine</span>
+        </h4>
+        <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30">
+          Soil, Season & Climate Advisory
+        </span>
+      </div>
+
+      <!-- Interactive Question Prompts -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 mb-1">1. Select Soil Type:</label>
+          <select id="agriSoilSelect" onchange="renderGraminKrishiAdvisory()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-1 focus:ring-amber-500 outline-none cursor-pointer">
+            <option value="Alluvial">Alluvial Soil (River Basins & Deltas)</option>
+            <option value="Black">Black Soil / Regur (Basaltic Clay)</option>
+            <option value="Red">Red & Yellow Soil (Porous & Iron Rich)</option>
+            <option value="Laterite">Laterite Soil (Acidic Hill Slopes)</option>
+            <option value="Sandy">Sandy Soil (Arid & Coastal Dunes)</option>
+            <option value="Loamy" selected>Loamy Soil (Optimal 40-40-20 Mix)</option>
+            <option value="Clayey">Clayey Soil (Heavy Water Retentive)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 mb-1">2. Select Cropping Season:</label>
+          <select id="agriSeasonSelect" onchange="renderGraminKrishiAdvisory()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-1 focus:ring-amber-500 outline-none cursor-pointer">
+            <option value="Kharif">Kharif (Monsoon: Jun – Oct)</option>
+            <option value="Rabi">Rabi (Winter: Oct – Mar)</option>
+            <option value="Zaid">Zaid (Summer: Mar – Jun)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 mb-1">3. Select Target Crop (Optional):</label>
+          <select id="agriCropSelect" onchange="renderGraminKrishiAdvisory()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-1 focus:ring-amber-500 outline-none cursor-pointer">
+            <option value="Auto">Auto-Match Best Yield Crops</option>
+            <option value="Rice (Paddy)">Rice (Paddy)</option>
+            <option value="Wheat">Wheat</option>
+            <option value="Maize">Maize</option>
+            <option value="Cotton">Cotton</option>
+            <option value="Sugarcane">Sugarcane</option>
+            <option value="Mustard">Mustard</option>
+            <option value="Chickpea (Gram)">Chickpea (Gram)</option>
+            <option value="Groundnut">Groundnut</option>
+            <option value="Soyabean">Soyabean</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Dynamic Output Advisory Container -->
+      <div id="graminKrishiOutput" class="space-y-4"></div>
+    </div>
+    ` : ''}
+  `;
+
+  if (personaKey === 'Agriculture/Gardeners') {
+    setTimeout(renderGraminKrishiAdvisory, 50);
+  }
   `;
 
   const hourlyChip = document.getElementById('hourlyProfileChip');
@@ -1586,7 +1557,7 @@ function setupModalEvents() {
       };
 
       try {
-        const res = await fetch(`${API_BASE_URL}/api/save-location`, {
+        const res = await fetch('/api/save-location', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1673,4 +1644,194 @@ function setLoading(loading) {
     btnText.textContent = 'Get Forecast';
     searchBtn.disabled = false;
   }
+}
+
+// =============================================================================
+// Gramin Krishi Agronomy & Crop-Soil Engine
+// =============================================================================
+const AGRONOMY_DATA = {
+  soils: {
+    Alluvial: {
+      name: 'Alluvial Soil',
+      characteristics: 'Fine-grained, depositional silt/clay loam; highly fertile and porous.',
+      nutrients: 'Rich in Potash (K), Phosphoric Acid & Lime | Deficient in Nitrogen (N) & Humus',
+      waterRetention: 'Moderate to High (Sustains capillary moisture well)',
+      amendments: 'Apply Nitrogen (N) & Phosphorus (P); incorporate green manure (Dhaincha/Sunnhemp).',
+      crops: {
+        Kharif: ['Rice (Paddy)', 'Maize', 'Sugarcane', 'Soyabean'],
+        Rabi: ['Wheat', 'Mustard', 'Potato', 'Barley'],
+        Zaid: ['Watermelon', 'Cucumber', 'Moong Dal']
+      }
+    },
+    Black: {
+      name: 'Black Soil (Regur)',
+      characteristics: 'Clayey, self-ploughing, swells when wet, forms deep cracks when dry.',
+      nutrients: 'Rich in Calcium, Carbonates, Mg & Potash | Deficient in Nitrogen, Phosphorus & Humus',
+      waterRetention: 'Very High (Retains subsoil moisture during dry spells)',
+      amendments: 'Summer deep ploughing for soil aeration; add FYM compost & Zinc (Zn).',
+      crops: {
+        Kharif: ['Cotton', 'Soyabean', 'Sorghum (Jowar)', 'Pigeon Pea (Arhar)'],
+        Rabi: ['Chickpea (Gram)', 'Wheat', 'Linseed', 'Safflower'],
+        Zaid: ['Sunflower', 'Cowpea (Lobia)']
+      }
+    },
+    Red: {
+      name: 'Red & Yellow Soil',
+      characteristics: 'Porous, friable structure; red hue from ferric oxide diffusion.',
+      nutrients: 'Rich in Iron (Fe) & Potash | Deficient in Nitrogen, Phosphorus, Humus & Lime',
+      waterRetention: 'Low to Moderate (Requires micro-irrigation)',
+      amendments: 'Apply agricultural lime/dolomite to neutralize acidity; practice organic mulching.',
+      crops: {
+        Kharif: ['Groundnut', 'Pearl Millet (Bajra)', 'Finger Millet (Ragi)', 'Pulses'],
+        Rabi: ['Potato', 'Oilseeds', 'Tobacco', 'Pulses'],
+        Zaid: ['Cowpea', 'Summer Vegetables']
+      }
+    },
+    Laterite: {
+      name: 'Laterite Soil',
+      characteristics: 'Acidic (pH 4.5-6.0), heavily leached, forms hard crust when dry.',
+      nutrients: 'Rich in Iron Oxide & Aluminium | Deficient in Nitrogen, Potash, Lime & Phosphate',
+      waterRetention: 'Low (High percolation rate and rapid drainage)',
+      amendments: 'Apply agricultural lime to boost pH; add rock phosphate and bio-compost.',
+      crops: {
+        Kharif: ['Cashewnut', 'Tapioca', 'Tea', 'Coffee'],
+        Rabi: ['Spices', 'Arecanut', 'Rubber'],
+        Zaid: ['Coconut', 'Garden Crops']
+      }
+    },
+    Sandy: {
+      name: 'Sandy Soil',
+      characteristics: 'Coarse-textured, high porosity, loose and unaggregated structure.',
+      nutrients: 'Rich in Silica (SiO2) | Deficient in N, P, K, Organic Humus & Micronutrients',
+      waterRetention: 'Very Low (Prone to fast percolation and nutrient leaching)',
+      amendments: 'Heavy compost/vermicompost application; frequent light drip irrigations.',
+      crops: {
+        Kharif: ['Pearl Millet (Bajra)', 'Groundnut', 'Guar (Cluster Bean)'],
+        Rabi: ['Mustard', 'Barley', 'Chickpea (Gram)'],
+        Zaid: ['Watermelon', 'Muskmelon', 'Cucumber']
+      }
+    },
+    Loamy: {
+      name: 'Loamy Soil',
+      characteristics: 'Optimal 40% Sand, 40% Silt, 20% Clay mix; highly fertile & friable.',
+      nutrients: 'Rich in Well-balanced NPK & high organic humus content',
+      waterRetention: 'Optimal / High (Ideal moisture retention & air permeability)',
+      amendments: 'Maintain balanced crop rotation; periodic vermicompost addition.',
+      crops: {
+        Kharif: ['Maize', 'Rice (Paddy)', 'Soyabean', 'Vegetables'],
+        Rabi: ['Wheat', 'Mustard', 'Peas', 'Vegetables'],
+        Zaid: ['Cucumber', 'Fodder Crops', 'Melons']
+      }
+    },
+    Clayey: {
+      name: 'Clayey Soil',
+      characteristics: 'Fine particles (<0.002 mm), dense, heavy, sticky when wet.',
+      nutrients: 'Rich in Potash, Calcium & Magnesium | Deficient in Soil aeration & organic matter',
+      waterRetention: 'Extremely High (Prone to waterlogging & root hypoxia)',
+      amendments: 'Construct field surface drainage channels; apply gypsum & coarse sand for tilth.',
+      crops: {
+        Kharif: ['Rice (Paddy)', 'Sugarcane', 'Jute'],
+        Rabi: ['Wheat (with drainage)', 'Chickpea (Gram)'],
+        Zaid: ['Fodder Crops', 'Moong Dal']
+      }
+    }
+  },
+  cropRequirements: {
+    'Rice (Paddy)': { temp: '22°C – 32°C', rain: '1000 – 1500 mm', sun: 'High sunlight during grain filling', vulnerability: 'Submergence at seedling stage, cold waves during flowering' },
+    'Wheat': { temp: '10°C – 26°C', rain: '500 – 750 mm', sun: 'Bright sunny maturation days', vulnerability: 'Terminal heat stress near harvest, early frost' },
+    'Maize': { temp: '18°C – 27°C', rain: '600 – 1000 mm', sun: 'Full sun (6-8 hrs/day)', vulnerability: 'Waterlogging at early stages, drought at tasseling' },
+    'Cotton': { temp: '21°C – 30°C', rain: '500 – 800 mm', sun: 'Bright sunshine; 200 frost-free days', vulnerability: 'Rain during boll opening ruins lint quality' },
+    'Sugarcane': { temp: '20°C – 35°C', rain: '1500 – 2500 mm', sun: 'Prolonged sunshine & high humidity', vulnerability: 'Frost halts juice maturation; prolonged drought' },
+    'Mustard': { temp: '10°C – 25°C', rain: '250 – 400 mm', sun: 'Clear sunny weather', vulnerability: 'Aphid infestation in warm humid weather; heavy frost' },
+    'Chickpea (Gram)': { temp: '15°C – 25°C', rain: '350 – 500 mm', sun: 'Cool dry climate with abundant sun', vulnerability: 'Frost during pod formation; root rot from waterlogging' },
+    'Groundnut': { temp: '22°C – 30°C', rain: '500 – 750 mm', sun: 'Full sun; warm soil (>20°C)', vulnerability: 'Heavy clay hinders pod pegging; water stagnation' },
+    'Soyabean': { temp: '20°C – 30°C', rain: '600 – 900 mm', sun: 'Moderate sunlight; photoperiod sensitive', vulnerability: 'Dry spells during flowering reduce pod setting' }
+  }
+};
+
+function renderGraminKrishiAdvisory() {
+  const container = document.getElementById('graminKrishiOutput');
+  if (!container) return;
+
+  const soilKey = document.getElementById('agriSoilSelect')?.value || 'Loamy';
+  const seasonKey = document.getElementById('agriSeasonSelect')?.value || 'Kharif';
+  const cropKey = document.getElementById('agriCropSelect')?.value || 'Auto';
+
+  const soilData = AGRONOMY_DATA.soils[soilKey] || AGRONOMY_DATA.soils['Loamy'];
+  const matchedCrops = soilData.crops[seasonKey] || [];
+
+  const targetCropName = (cropKey !== 'Auto' && matchedCrops.includes(cropKey))
+    ? cropKey
+    : (matchedCrops[0] || 'Rice (Paddy)');
+
+  const cropReq = AGRONOMY_DATA.cropRequirements[targetCropName] || AGRONOMY_DATA.cropRequirements['Rice (Paddy)'];
+  const currentTemp = currentWeatherData?.temperature ?? 28.5;
+  const currentSoilMoisture = currentWeatherData?.soilMoisture ?? 0.25;
+
+  container.innerHTML = `
+    <!-- Top Crop Recommendations & Matrix -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">🌟 Top Matched Crops for ${soilData.name} (${seasonKey})</span>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">Yield Optimal</span>
+        </div>
+        <div class="flex flex-wrap gap-2 pt-1">
+          ${matchedCrops.map(c => `
+            <span class="px-3 py-1.5 rounded-xl bg-slate-950 border ${c === targetCropName ? 'border-amber-500 text-amber-300 font-bold' : 'border-slate-800 text-slate-300'} text-xs flex items-center gap-1.5">
+              <span>🌱</span> ${c}
+            </span>
+          `).join('')}
+        </div>
+        <p class="text-[11px] text-slate-400 pt-1">
+          <strong>Soil Texture:</strong> ${soilData.characteristics}
+        </p>
+      </div>
+
+      <!-- Soil Nutrient Profile & Water Retention -->
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+          <span class="font-bold text-sky-400 uppercase tracking-wider text-[11px]">🧪 Soil Nutrient Profile</span>
+          <span class="text-slate-400 text-[10px]">Water Retention: <strong>${soilData.waterRetention.split(' ')[0]}</strong></span>
+        </div>
+        <p class="text-slate-300 leading-relaxed">
+          ${soilData.nutrients}
+        </p>
+        <div class="pt-1.5 border-t border-slate-800">
+          <strong class="text-amber-300 block text-[11px] mb-0.5">💡 Soil Amendment Strategy:</strong>
+          <span class="text-slate-300 text-[11px]">${soilData.amendments}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Climate & Weather Requirements Card -->
+    <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+        <h5 class="text-xs font-bold text-white flex items-center gap-2">
+          <span>🌤️</span>
+          <span>Climate & Agronomic Requirement: <strong>${targetCropName}</strong></span>
+        </h5>
+        <span class="text-[10px] text-slate-400">Live Location Temp: <strong class="text-white">${currentTemp}°C</strong> | Soil Moisture: <strong class="text-white">${currentSoilMoisture} m³/m³</strong></span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <span class="text-[10px] text-slate-400 block">🌡️ Ideal Temperature Range</span>
+          <strong class="text-amber-300 text-xs">${cropReq.temp}</strong>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <span class="text-[10px] text-slate-400 block">🌧️ Water / Rainfall Need</span>
+          <strong class="text-sky-300 text-xs">${cropReq.rain}</strong>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+          <span class="text-[10px] text-slate-400 block">☀️ Sunlight & Photoperiod</span>
+          <strong class="text-emerald-300 text-xs">${cropReq.sun}</strong>
+        </div>
+      </div>
+
+      <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-200">
+        <strong>⚠️ Vulnerability & Risk Management:</strong> ${cropReq.vulnerability}
+      </div>
+    </div>
+  `;
 }
