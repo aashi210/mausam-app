@@ -330,7 +330,7 @@ const PersonalizationEngine = {
 // =============================================================================
 // DOM Elements Initialization
 // =============================================================================
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
   renderPresetChips();
   setupDropdownAndSearch();
   setupFilterTabs();
@@ -340,9 +340,15 @@ document.addEventListener('DOMContentLoaded', () => {
   setupLanguageToggle();
   setupAiDrawer();
 
-  // Initial load for Delhi
+  // Initial load for New Delhi
   fetchWeather(28.6139, 77.2090, 'New Delhi');
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 // =============================================================================
 // Searchable Dropdown & Autocomplete Search Bar
