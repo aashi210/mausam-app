@@ -950,20 +950,29 @@ function renderPersonaCards(personas) {
 
       <div class="mt-5 pt-3.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
         <span class="uppercase tracking-wider font-bold text-[10px] text-sky-400/80">${config.displayName}</span>
-        <span class="text-slate-400 font-medium flex items-center gap-1 hover:text-sky-300 transition">
+        <button type="button" class="inspect-btn text-slate-300 hover:text-sky-300 font-semibold flex items-center gap-1.5 transition cursor-pointer px-2 py-1 rounded-lg hover:bg-sky-500/10">
           <span>Inspect</span>
           <span>→</span>
-        </span>
+        </button>
       </div>
     `;
 
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
       activeSelectedPersonaKey = key;
       const allCards = personasContainer.querySelectorAll('.persona-card');
       allCards.forEach((c) => c.classList.remove('active-selected'));
       card.classList.add('active-selected');
       displayActivePersonaDetail(key, data);
       syncFilterTab(key);
+
+      const spotlight = document.getElementById('activePersonaSpotlight');
+      if (spotlight) {
+        spotlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      if (e.target.closest('.inspect-btn')) {
+        openPersonaInspectModal(key, data);
+      }
     });
 
     personasContainer.appendChild(card);
@@ -1644,6 +1653,70 @@ function setLoading(loading) {
     btnText.textContent = 'Get Forecast';
     searchBtn.disabled = false;
   }
+// Helper: Persona Inspect Modal Handler
+function openPersonaInspectModal(personaKey, personaData) {
+  const advisoryModal = document.getElementById('advisoryModal');
+  const advisoryModalBody = document.getElementById('advisoryModalBody');
+  if (!advisoryModal || !advisoryModalBody) return;
+
+  const config = PERSONA_CONFIG[personaKey] || PERSONA_CONFIG['Health-Conscious'];
+  const data = personaData || (currentPersonaData && currentPersonaData[personaKey]) || {
+    alertLevel: 'Safe',
+    recommendationText: 'Standard baseline meteorological guidance applies.'
+  };
+
+  let alertBadge = '<span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">🟢 Safe Alert</span>';
+  if (data.alertLevel === 'Warning') {
+    alertBadge = '<span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">🟡 Warning Alert</span>';
+  } else if (data.alertLevel === 'Danger') {
+    alertBadge = '<span class="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">🔴 Danger Alert</span>';
+  }
+
+  let extraContent = '';
+  if (personaKey === 'Agriculture/Gardeners') {
+    extraContent = `
+      <div class="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-2 text-xs">
+        <h5 class="font-bold text-amber-300 flex items-center gap-1.5">
+          <span>🌾</span> Gramin Krishi Agronomy Protocol
+        </h5>
+        <p class="text-slate-200 leading-relaxed">
+          Active agronomic mapping for <strong>${currentCityName}</strong>. Includes Soil Type (Alluvial, Black, Red, Sandy, Loamy, Clayey), Seasonal Cropping (Kharif, Rabi, Zaid), and climate requirement pairing.
+        </p>
+      </div>
+    `;
+  }
+
+  advisoryModalBody.innerHTML = `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center space-x-3">
+          <span class="text-3xl">${config.icon}</span>
+          <div>
+            <h4 class="text-base font-bold text-white">${config.title}</h4>
+            <span class="text-xs text-slate-400">Category: ${config.category}</span>
+          </div>
+        </div>
+        ${alertBadge}
+      </div>
+
+      <div class="space-y-2">
+        <span class="text-xs font-bold text-slate-300 uppercase tracking-wider block">📋 Detailed Biometeorological Advisory:</span>
+        <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-sm text-slate-100 leading-relaxed font-medium">
+          ${data.recommendationText}
+        </div>
+      </div>
+
+      <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs text-slate-300">
+        <div><strong>Monitored City:</strong> ${currentCityName}</div>
+        <div><strong>Guidance Focus:</strong> ${config.guidance}</div>
+        <div><strong>Compliance Standard:</strong> IMD / MoES Agricultural & Biometeorological Protocol</div>
+      </div>
+
+      ${extraContent}
+    </div>
+  `;
+
+  advisoryModal.classList.add('open');
 }
 
 // =============================================================================
